@@ -1,0 +1,155 @@
+<!-- language: html -->
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="utf-8"/>
+    <title>Sudoku UI</title>
+    <style>
+        body{font-family: Arial; padding:20px}
+        textarea{width:100%; height:200px; font-family: monospace}
+        pre{background:#f5f5f5; padding:10px}
+        table{border-collapse:collapse}
+        td{border:1px solid #ccc; width:30px; height:30px; text-align:center}
+    </style>
+</head>
+<body>
+<h3>Enviar Sudoku (JSON)</h3>
+<p>Formato: { "grid": [[...],...,[]] }</p>
+<textarea id="payload">{"grid":[[0,0,0,0,7,1,0,2,0],[0,0,0,0,0,0,8,0,0],[0,9,8,2,0,0,0,0,0],[7,8,0,9,0,0,3,0,0],[0,0,0,0,0,7,0,0,0],[0,5,0,0,0,3,0,0,0],[0,0,4,1,0,0,6,8,5],[0,0,0,0,0,0,0,0,9],[2,0,0,0,9,0,0,0,4]]}</textarea>
+<div style="margin:8px 0">
+    <select id="alg">
+        <option value="backtracking">backtracking</option>
+        <option value="dfs">dfs</option>
+        <option value="bfs">bfs</option>
+        <option value="greedy">greedy</option>
+        <option value="dp">dp</option>
+        <option value="branchbound">branchbound</option>
+    </select>
+    <button onclick="solve()">Resolver</button>
+</div>
+<div id="result"></div>
+<div id="metrics" style="margin-top:12px"></div>
+<div id="explain" style="margin-top:12px"></div>
+
+<script>
+    async function solve(){
+        const resultEl = document.getElementById('result');
+        resultEl.innerHTML = 'Procesando...';
+        let payload;
+        try {
+            payload = JSON.parse(document.getElementById('payload').value);
+        } catch(e){
+            resultEl.innerHTML = '<b>JSON inválido</b>: ' + e.message;
+            return;
+        }
+        const alg = document.getElementById('alg').value;
+        const url = window.location.origin + '/api/sudoku/solve?algoritmo=' + encodeURIComponent(alg);
+        try {
+            const res = await fetch(url, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload)
+            });
+            if (!res.ok) {
+                // Intentar parsear JSON para extraer métricas aunque sea error
+                let bodyText = await res.text();
+                try {
+                    const errObj = JSON.parse(bodyText);
+                    renderErrorWithMetrics(res.status, errObj);
+                } catch(_) {
+                    resultEl.innerHTML = '<b>Error:</b> ' + res.status + ' - ' + bodyText;
+                    document.getElementById('metrics').innerHTML = '';
+                }
+                return;
+            }
+            const solved = await res.json();
+            renderSolved(solved);
+        } catch (err) {
+            resultEl.innerHTML = '<b>Error de conexión</b>: ' + err.message;
+            document.getElementById('metrics').innerHTML = '';
+            document.getElementById('explain').innerHTML = '';
+        }
+    }
+
+    function renderGrid(grid){
+        if(!Array.isArray(grid)){ document.getElementById('result').innerText = 'Respuesta inválida'; return; }
+        let html = '<table>';
+        for(let r=0;r<9;r++){
+            html += '<tr>';
+            for(let c=0;c<9;c++){
+                html += '<td>' + (grid[r][c] === 0 ? '' : grid[r][c]) + '</td>';
+            }
+            html += '</tr>';
+        }
+        html += '</table>';
+        document.getElementById('result').innerHTML = html;
+    }
+
+    function renderSolved(data){
+        // data: { grid, algoritmo, runtimeMillis, memoryMB, complexity }
+        renderGrid(data.grid || []);
+        const m = document.getElementById('metrics');
+        const algo = data.algoritmo || '(no informado)';
+        const rt = (data.runtimeMillis !== undefined ? data.runtimeMillis : '?');
+        const mem = (data.memoryMB !== undefined ? data.memoryMB : '?');
+        const cx = data.complexity || '(n/d)';
+        m.innerHTML = `<pre><b>Algoritmo:</b> ${algo}
+<b>Runtime:</b> ${rt} ms
+<b>Memoria:</b> ${mem} MB
+<b>Big-O aprox.:</b> ${cx}</pre>`;
+        renderTrace(data);
+    }
+
+    function renderErrorWithMetrics(status, errObj){
+        const resultEl = document.getElementById('result');
+        const m = document.getElementById('metrics');
+        const hasPartial = errObj && Array.isArray(errObj.partialGrid);
+        if (hasPartial) {
+            renderGrid(errObj.partialGrid);
+        } else {
+            resultEl.innerHTML = `<b>Error:</b> ${status} - ${(errObj && errObj.message) ? errObj.message : 'Error'}`;
+        }
+        const algo = errObj && errObj.algoritmo ? errObj.algoritmo : '(no informado)';
+        const rt = (errObj && errObj.runtimeMillis !== undefined) ? errObj.runtimeMillis : '?';
+        const mem = (errObj && errObj.memoryMB !== undefined) ? errObj.memoryMB : '?';
+        const cx = (errObj && errObj.complexity) ? errObj.complexity : '(n/d)';
+        m.innerHTML = `<pre><b>Algoritmo:</b> ${algo}
+<b>Runtime:</b> ${rt} ms
+<b>Memoria:</b> ${mem} MB
+<b>Big-O aprox.:</b> ${cx}</pre>`;
+        renderTrace(errObj);
+    }
+
+    function renderTrace(obj){
+        const ex = document.getElementById('explain');
+        if(!obj) { ex.innerHTML = ''; return; }
+        const exp = obj.explanation || '';
+        const reason = obj.reason || '';
+        const nodes = obj.nodesExpanded != null ? obj.nodesExpanded : '';
+        const depth = obj.maxDepth != null ? obj.maxDepth : '';
+        const frontier = obj.frontierPeak != null ? obj.frontierPeak : '';
+        const filled = obj.filledCells != null ? obj.filledCells : '';
+        const steps = Array.isArray(obj.steps) ? obj.steps : [];
+        let html = '';
+        if (exp) html += `<p><b>Explicación:</b> ${exp}</p>`;
+        if (reason) html += `<p><b>Motivo de detención:</b> ${reason}</p>`;
+        html += '<pre>' +
+            (nodes!==''?`Nodos expandidos: ${nodes}\n`: '') +
+            (depth!==''?`Profundidad máx.: ${depth}\n`: '') +
+            (frontier!==''?`Pico de frontera: ${frontier}\n`: '') +
+            (filled!==''?`Celdas completadas: ${filled}/81\n`: '') +
+            '</pre>';
+        if (steps.length){
+            html += '<details open><summary><b>Pasos (máx. 200):</b></summary><ol>';
+            for(const s of steps){ html += `<li>${escapeHtml(String(s))}</li>`; }
+            html += '</ol></details>';
+        }
+        ex.innerHTML = html;
+    }
+
+    function escapeHtml(str){
+        return str.replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;','\'':'&#39;'}[m]));
+    }
+</script>
+</body>
+</html>
