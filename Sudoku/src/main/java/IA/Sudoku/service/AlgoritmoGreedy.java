@@ -42,7 +42,17 @@ public class AlgoritmoGreedy {
         for (int r = 0; r < 9; r++)
             for (int c = 0; c < 9; c++)
                 if (grid[r][c] == 0) {
-                    if (trace != null) trace.setReason("No hay más celdas con única opción (se requiere exploración)");
+                    if (trace != null) {
+                        int remaining = 81 - filled;
+                        trace.setReason(String.format(
+                            "❌ Greedy incompleto (%d celdas sin resolver). " +
+                            "Este algoritmo solo llena celdas con UNA única opción válida. " +
+                            "Cuando todas las celdas vacías tienen 2+ opciones, Greedy se detiene " +
+                            "porque no hace backtracking ni prueba alternativas. " +
+                            "Necesita un algoritmo que explore ramas (DFS/Backtracking).",
+                            remaining
+                        ));
+                    }
                     return false;
                 }
         return true;

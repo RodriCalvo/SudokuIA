@@ -1,0 +1,657 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Solucionador de Sudoku IA</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+        
+        .container {
+            background: white;
+            border-radius: 20px;
+            padding: 30px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+            max-width: 600px;
+            width: 100%;
+        }
+        
+        h1 {
+            text-align: center;
+            color: #667eea;
+            margin-bottom: 10px;
+            font-size: 2em;
+        }
+        
+        .subtitle {
+            text-align: center;
+            color: #666;
+            margin-bottom: 30px;
+            font-size: 0.9em;
+        }
+        
+        .sudoku-grid {
+            display: grid;
+            grid-template-columns: repeat(9, 1fr);
+            gap: 2px;
+            background: #333;
+            padding: 2px;
+            border-radius: 10px;
+            margin-bottom: 20px;
+            max-width: 450px;
+            margin-left: auto;
+            margin-right: auto;
+        }
+        
+        .sudoku-cell {
+            background: white;
+            aspect-ratio: 1;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.2em;
+            font-weight: bold;
+            color: #333;
+        }
+        
+        .sudoku-cell input {
+            width: 100%;
+            height: 100%;
+            border: none;
+            text-align: center;
+            font-size: 1.2em;
+            font-weight: bold;
+            color: #667eea;
+        }
+        
+        .sudoku-cell input:focus {
+            outline: 2px solid #667eea;
+            background: #f0f4ff;
+        }
+        
+        .sudoku-cell.solved {
+            background: #e8f5e9;
+            color: #2e7d32;
+        }
+        
+        .sudoku-cell:nth-child(9n+3),
+        .sudoku-cell:nth-child(9n+6) {
+            border-right: 3px solid #333;
+        }
+        
+        .sudoku-cell:nth-child(n+19):nth-child(-n+27),
+        .sudoku-cell:nth-child(n+46):nth-child(-n+54) {
+            border-bottom: 3px solid #333;
+        }
+        
+        .controls {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 20px;
+            flex-wrap: wrap;
+        }
+        
+        select, button {
+            padding: 12px 20px;
+            border: none;
+            border-radius: 8px;
+            font-size: 1em;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+        
+        select {
+            flex: 1;
+            background: #f5f5f5;
+            color: #333;
+            border: 2px solid #ddd;
+        }
+        
+        button {
+            background: #667eea;
+            color: white;
+            font-weight: bold;
+            flex: 1;
+        }
+        
+        button:hover {
+            background: #5568d3;
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(102, 126, 234, 0.4);
+        }
+        
+        button:active {
+            transform: translateY(0);
+        }
+        
+        button.clear {
+            background: #ff6b6b;
+        }
+        
+        button.clear:hover {
+            background: #ee5555;
+        }
+        
+        button.example {
+            background: #4ecdc4;
+        }
+        
+        button.example:hover {
+            background: #3db9b0;
+        }
+        
+        .info {
+            background: #f5f5f5;
+            padding: 15px;
+            border-radius: 8px;
+            margin-top: 20px;
+            display: none;
+            max-height: 600px;
+            overflow-y: auto;
+        }
+        
+        .info.show {
+            display: block;
+        }
+        
+        .info h3 {
+            color: #667eea;
+            margin-bottom: 10px;
+        }
+        
+        .info p {
+            margin: 5px 0;
+            color: #666;
+        }
+        
+        .info .metric {
+            display: inline-block;
+            background: white;
+            padding: 5px 10px;
+            border-radius: 5px;
+            margin: 5px 5px 5px 0;
+            font-size: 0.9em;
+        }
+        
+        .loading {
+            text-align: center;
+            color: #667eea;
+            font-weight: bold;
+            display: none;
+            padding: 20px;
+        }
+        
+        .loading.show {
+            display: block;
+        }
+        
+        .error {
+            background: #ffebee;
+            color: #c62828;
+            padding: 15px;
+            border-radius: 8px;
+            margin-top: 20px;
+            display: none;
+        }
+        
+        .error.show {
+            display: block;
+        }
+        
+        @media (max-width: 600px) {
+            .container {
+                padding: 15px;
+            }
+            
+            .sudoku-cell {
+                font-size: 1em;
+            }
+            
+            .controls {
+                flex-direction: column;
+            }
+            
+            select, button {
+                width: 100%;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🧩 Solucionador de Sudoku IA</h1>
+        <p class="subtitle">Resuelve Sudokus con diferentes algoritmos de búsqueda</p>
+        
+        <div class="sudoku-grid" id="sudoku-grid"></div>
+        
+        <div class="controls">
+            <select id="algoritmo">
+                <option value="auto">🤖 AUTO - Selección Automática</option>
+                <option value="backtracking">Backtracking (rápido)</option>
+                <option value="dfs">DFS - Profundidad</option>
+                <option value="bfs">BFS - Anchura</option>
+                <option value="greedy">Greedy - Codicioso</option>
+                <option value="dp">DP - Prog. Dinámica</option>
+                <option value="branchbound">Branch & Bound</option>
+            </select>
+        </div>
+        
+        <div class="controls">
+            <button onclick="solve()">🚀 Resolver</button>
+            <button class="example" onclick="loadExample()">📝 Ejemplo Fijo</button>
+            <button class="example" onclick="generateRandom()">🎲 Aleatorio</button>
+            <button class="clear" onclick="clearGrid()">🗑️ Limpiar</button>
+        </div>
+        
+        <div class="loading" id="loading">
+            ⏳ Resolviendo...
+        </div>
+        
+        <div class="error" id="error"></div>
+        
+        <div class="info" id="info">
+            <h3>📊 Resultados</h3>
+            <div id="metrics"></div>
+        </div>
+    </div>
+    
+    <script>
+        const API_URL = 'http://localhost:8080/api/sudoku/solve';
+        const API_URL_AUTO = 'http://localhost:8080/api/sudoku/solve/auto';
+        
+        // Crear la grilla
+        function createGrid() {
+            const grid = document.getElementById('sudoku-grid');
+            grid.innerHTML = '';
+            
+            for (let i = 0; i < 81; i++) {
+                const cell = document.createElement('div');
+                cell.className = 'sudoku-cell';
+                
+                const input = document.createElement('input');
+                input.type = 'text';
+                input.maxLength = 1;
+                input.id = `cell-${i}`;
+                
+                input.addEventListener('input', (e) => {
+                    const value = e.target.value;
+                    if (value && (value < '1' || value > '9')) {
+                        e.target.value = '';
+                    }
+                });
+                
+                cell.appendChild(input);
+                grid.appendChild(cell);
+            }
+        }
+        
+        // Obtener valores de la grilla
+        function getGridValues() {
+            const grid = [];
+            for (let i = 0; i < 9; i++) {
+                const row = [];
+                for (let j = 0; j < 9; j++) {
+                    const input = document.getElementById(`cell-${i * 9 + j}`);
+                    const value = input.value.trim();
+                    row.push(value === '' ? 0 : parseInt(value));
+                }
+                grid.push(row);
+            }
+            return grid;
+        }
+        
+        // Establecer valores en la grilla
+        function setGridValues(grid, isSolution = false) {
+            for (let i = 0; i < 9; i++) {
+                for (let j = 0; j < 9; j++) {
+                    const input = document.getElementById(`cell-${i * 9 + j}`);
+                    const value = grid[i][j];
+                    input.value = value === 0 ? '' : value;
+                    
+                    if (isSolution && value !== 0) {
+                        input.parentElement.classList.add('solved');
+                        input.disabled = true;
+                    } else {
+                        input.parentElement.classList.remove('solved');
+                        input.disabled = false;
+                    }
+                }
+            }
+        }
+        
+        // Limpiar grilla
+        function clearGrid() {
+            const grid = Array(9).fill().map(() => Array(9).fill(0));
+            setGridValues(grid);
+            document.getElementById('info').classList.remove('show');
+            document.getElementById('error').classList.remove('show');
+        }
+        
+        // Cargar ejemplo
+        function loadExample() {
+            const example = [
+                [5,3,0,0,7,0,0,0,0],
+                [6,0,0,1,9,5,0,0,0],
+                [0,9,8,0,0,0,0,6,0],
+                [8,0,0,0,6,0,0,0,3],
+                [4,0,0,8,0,3,0,0,1],
+                [7,0,0,0,2,0,0,0,6],
+                [0,6,0,0,0,0,2,8,0],
+                [0,0,0,4,1,9,0,0,5],
+                [0,0,0,0,8,0,0,7,9]
+            ];
+            setGridValues(example);
+            document.getElementById('info').classList.remove('show');
+            document.getElementById('error').classList.remove('show');
+        }
+        
+        // Resolver Sudoku
+        async function solve() {
+            const algoritmo = document.getElementById('algoritmo').value;
+            const grid = getGridValues();
+            
+            // Ocultar mensajes anteriores
+            document.getElementById('info').classList.remove('show');
+            document.getElementById('error').classList.remove('show');
+            document.getElementById('loading').classList.add('show');
+            
+            try {
+                let response;
+                
+                if (algoritmo === 'auto') {
+                    // Usar endpoint de selección automática
+                    response = await fetch(API_URL_AUTO, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                        },
+                        body: JSON.stringify({ grid })
+                    });
+                } else {
+                    // Usar endpoint manual con algoritmo específico
+                    response = await fetch(`${API_URL}?algoritmo=${algoritmo}`, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                        },
+                        body: JSON.stringify({ grid })
+                    });
+                }
+                
+                document.getElementById('loading').classList.remove('show');
+                
+                if (!response.ok) {
+                    const errorData = await response.json();
+                    showError(errorData);
+                    return;
+                }
+                
+                const data = await response.json();
+                showSuccess(data);
+                
+            } catch (error) {
+                document.getElementById('loading').classList.remove('show');
+                showError({ 
+                    message: 'Error de conexión', 
+                    reason: '¿Está el servidor corriendo en localhost:8080?' 
+                });
+            }
+        }
+        
+        // Mostrar éxito
+        function showSuccess(data) {
+            setGridValues(data.grid, true);
+            
+            const metricsDiv = document.getElementById('metrics');
+            let html = `<p><strong>✅ ¡Resuelto exitosamente!</strong></p>`;
+            
+            // Si fue selección automática, mostrar detalles
+            if (data.selectedAlgorithm) {
+                html += `
+                    <div style="background: #e3f2fd; padding: 10px; border-radius: 5px; margin: 10px 0;">
+                        <h4 style="color: #1976d2; margin: 5px 0;">🏆 Algoritmo Ganador: ${data.selectedAlgorithm.toUpperCase()}</h4>
+                        <p style="margin: 5px 0;"><strong>Por qué ganó:</strong> ${data.selectionReason}</p>
+                        <p style="margin: 5px 0;"><strong>Tiempo:</strong> ${data.runtimeMillis} ms | <strong>Memoria:</strong> ${data.memoryMB} MB</p>
+                        <p style="margin: 5px 0;"><strong>Complejidad:</strong> ${data.complexity}</p>
+                    </div>
+                `;
+                
+                if (data.analysis) {
+                    html += `
+                        <div style="background: #f5f5f5; padding: 10px; border-radius: 5px; margin: 10px 0;">
+                            <h4 style="color: #666; margin: 5px 0;">📊 Análisis del Puzzle</h4>
+                            <p style="margin: 5px 0;">• Celdas vacías: ${data.analysis.emptyCells}</p>
+                            <p style="margin: 5px 0;">• Completado: ${data.analysis.fillPercentage}%</p>
+                            <p style="margin: 5px 0;">• Nivel de restricción: ${data.analysis.constraintLevel}/10</p>
+                        </div>
+                    `;
+                }
+                
+                // Tabla comparativa de TODOS los algoritmos
+                if (data.allResults && data.allResults.length > 0) {
+                    html += `
+                        <div style="background: white; padding: 10px; border-radius: 5px; margin: 10px 0; border: 2px solid #1976d2;">
+                            <h4 style="color: #1976d2; margin: 5px 0;">📈 Comparación de TODOS los Algoritmos</h4>
+                            <table style="width: 100%; border-collapse: collapse; margin-top: 10px; font-size: 0.9em;">
+                                <thead>
+                                    <tr style="background: #1976d2; color: white;">
+                                        <th style="padding: 8px; text-align: left;">Algoritmo</th>
+                                        <th style="padding: 8px; text-align: center;">Estado</th>
+                                        <th style="padding: 8px; text-align: right;">Tiempo (ms)</th>
+                                        <th style="padding: 8px; text-align: right;">Memoria (MB)</th>
+                                        <th style="padding: 8px; text-align: right;">Nodos</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                    `;
+                    
+                    data.allResults.forEach(result => {
+                        const isWinner = result.algorithm === data.selectedAlgorithm;
+                        const rowStyle = isWinner ? 
+                            'background: #e8f5e9; font-weight: bold;' : 
+                            (result.solved ? 'background: #f5f5f5;' : 'background: #ffebee;');
+                        
+                        html += `
+                            <tr style="${rowStyle}">
+                                <td style="padding: 8px;">${isWinner ? '🏆 ' : ''}${result.algorithm}</td>
+                                <td style="padding: 8px; text-align: center;">${result.status}</td>
+                                <td style="padding: 8px; text-align: right;">${result.runtimeMs.toFixed(3)}</td>
+                                <td style="padding: 8px; text-align: right;">${result.memoryMB}</td>
+                                <td style="padding: 8px; text-align: right;">${result.nodesExpanded || 0}</td>
+                            </tr>
+                        `;
+                    });
+                    
+                    html += `
+                                </tbody>
+                            </table>
+                        </div>
+                    `;
+                    
+                    // Detalles de complejidad de cada algoritmo
+                    html += `
+                        <div style="background: #fff3e0; padding: 10px; border-radius: 5px; margin: 10px 0;">
+                            <h4 style="color: #e65100; margin: 5px 0;">🔬 Complejidad de Cada Algoritmo</h4>
+                    `;
+                    
+                    data.allResults.forEach(result => {
+                        html += `<p style="margin: 5px 0; font-size: 0.85em;"><strong>${result.algorithm}:</strong> ${result.complexity}</p>`;
+                    });
+                    
+                    html += `</div>`;
+                }
+                
+                if (data.rejectedAlgorithms && Object.keys(data.rejectedAlgorithms).length > 0) {
+                    html += `
+                        <div style="background: #ffebee; padding: 10px; border-radius: 5px; margin: 10px 0;">
+                            <h4 style="color: #c62828; margin: 5px 0;">❌ Por qué NO se eligieron los demás</h4>
+                    `;
+                    for (const [algo, reason] of Object.entries(data.rejectedAlgorithms)) {
+                        html += `<p style="margin: 5px 0;"><strong>${algo}:</strong> ${reason}</p>`;
+                    }
+                    html += `</div>`;
+                }
+            } else {
+                // Endpoint manual (sin AUTO)
+                html += `
+                    <div>
+                        <span class="metric">⏱️ Tiempo: ${data.runtimeMillis} ms</span>
+                        <span class="metric">💾 Memoria: ${data.memoryMB} MB</span>
+                        <span class="metric">🔢 Nodos: ${data.nodesExpanded || 'N/A'}</span>
+                    </div>
+                    <p style="margin-top: 10px;"><strong>Algoritmo usado:</strong> ${data.algoritmo}</p>
+                    <p><strong>Complejidad:</strong> ${data.complexity}</p>
+                    ${data.explanation ? `<p><strong>Explicación:</strong> ${data.explanation}</p>` : ''}
+                `;
+            }
+            
+            metricsDiv.innerHTML = html;
+            document.getElementById('info').classList.add('show');
+        }
+        
+        // Mostrar error
+        function showError(errorData) {
+            const errorDiv = document.getElementById('error');
+            errorDiv.innerHTML = `
+                <h3>❌ ${errorData.message || 'Error'}</h3>
+                <p>${errorData.reason || errorData.explanation || 'No se pudo resolver el Sudoku'}</p>
+                ${errorData.filledCells ? `<p>Celdas llenadas: ${errorData.filledCells} / 81</p>` : ''}
+            `;
+            errorDiv.classList.add('show');
+            
+            // Mostrar grid parcial si existe
+            if (errorData.partialGrid) {
+                setGridValues(errorData.partialGrid);
+            }
+        }
+        
+        // Generar Sudoku aleatorio válido
+        function generateRandom() {
+            // Generar un sudoku completo válido primero
+            const fullGrid = generateFullSudoku();
+            
+            // Remover números aleatoriamente para crear el puzzle
+            // Nivel de dificultad variable: entre 15 y 50 celdas vacías
+            // Esto permite ver diferentes algoritmos:
+            // 15-20 vacías → DP o Greedy
+            // 20-35 vacías → Backtracking
+            // 35-50 vacías → Branch & Bound
+            const emptyCells = Math.floor(Math.random() * 36) + 15; // 15-50
+            const puzzle = removeNumbers(fullGrid, emptyCells);
+            
+            setGridValues(puzzle);
+            document.getElementById('info').classList.remove('show');
+            document.getElementById('error').classList.remove('show');
+        }
+        
+        // Generar un Sudoku completo válido
+        function generateFullSudoku() {
+            const grid = Array(9).fill().map(() => Array(9).fill(0));
+            fillGrid(grid);
+            return grid;
+        }
+        
+        // Llenar grid con backtracking (versión simplificada)
+        function fillGrid(grid) {
+            const numbers = [1, 2, 3, 4, 5, 6, 7, 8, 9];
+            
+            for (let row = 0; row < 9; row++) {
+                for (let col = 0; col < 9; col++) {
+                    if (grid[row][col] === 0) {
+                        // Mezclar números para aleatoriedad
+                        shuffleArray(numbers);
+                        
+                        for (let num of numbers) {
+                            if (isValidMove(grid, row, col, num)) {
+                                grid[row][col] = num;
+                                
+                                if (fillGrid(grid)) {
+                                    return true;
+                                }
+                                
+                                grid[row][col] = 0;
+                            }
+                        }
+                        return false;
+                    }
+                }
+            }
+            return true;
+        }
+        
+        // Validar movimiento
+        function isValidMove(grid, row, col, num) {
+            // Verificar fila
+            for (let c = 0; c < 9; c++) {
+                if (grid[row][c] === num) return false;
+            }
+            
+            // Verificar columna
+            for (let r = 0; r < 9; r++) {
+                if (grid[r][col] === num) return false;
+            }
+            
+            // Verificar subcuadro 3x3
+            const boxRow = Math.floor(row / 3) * 3;
+            const boxCol = Math.floor(col / 3) * 3;
+            for (let r = boxRow; r < boxRow + 3; r++) {
+                for (let c = boxCol; c < boxCol + 3; c++) {
+                    if (grid[r][c] === num) return false;
+                }
+            }
+            
+            return true;
+        }
+        
+        // Mezclar array
+        function shuffleArray(array) {
+            for (let i = array.length - 1; i > 0; i--) {
+                const j = Math.floor(Math.random() * (i + 1));
+                [array[i], array[j]] = [array[j], array[i]];
+            }
+        }
+        
+        // Remover números del grid completo
+        function removeNumbers(grid, count) {
+            const puzzle = grid.map(row => [...row]);
+            const positions = [];
+            
+            // Crear lista de todas las posiciones
+            for (let r = 0; r < 9; r++) {
+                for (let c = 0; c < 9; c++) {
+                    positions.push([r, c]);
+                }
+            }
+            
+            // Mezclar posiciones
+            shuffleArray(positions);
+            
+            // Remover números en posiciones aleatorias
+            for (let i = 0; i < count && i < positions.length; i++) {
+                const [r, c] = positions[i];
+                puzzle[r][c] = 0;
+            }
+            
+            return puzzle;
+        }
+        
+        // Inicializar
+        createGrid();
+        loadExample();
+    </script>
+</body>
+</html>

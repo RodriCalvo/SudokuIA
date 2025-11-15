@@ -57,8 +57,17 @@ public class AlgoritmoDP {
             for (int c = 0; c < 9; c++)
                 if (grid[r][c] == 0) {
                     if (trace != null) {
-                        trace.setReason("Propagación agotada: quedan celdas con múltiples candidatos (se requiere búsqueda)");
-                        trace.setFilledCells(countFilled(grid));
+                        int filled = countFilled(grid);
+                        int remaining = 81 - filled;
+                        trace.setReason(String.format(
+                            "❌ DP incompleto (%d celdas sin resolver). " +
+                            "La propagación de restricciones mediante bitmasks eliminó candidatos imposibles, " +
+                            "pero las celdas restantes tienen múltiples candidatos válidos. " +
+                            "DP puro no adivina ni hace backtracking: solo deduce por lógica. " +
+                            "Se requiere un algoritmo de búsqueda para probar combinaciones.",
+                            remaining
+                        ));
+                        trace.setFilledCells(filled);
                         trace.setPartialGrid(copyGrid(grid));
                     }
                     return false;

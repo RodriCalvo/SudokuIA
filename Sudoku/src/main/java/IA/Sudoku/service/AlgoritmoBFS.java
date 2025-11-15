@@ -18,9 +18,15 @@ public class AlgoritmoBFS {
         // Cola de estados (BFS)
         ArrayDeque<int[][]> queue = new ArrayDeque<>();
         queue.add(start);
+        
+        // Límite de estados para evitar OutOfMemoryError
+        final int MAX_STATES = 50000; // Límite de seguridad
+        int statesProcessed = 0;
 
-        while (!queue.isEmpty()) {
+        while (!queue.isEmpty() && statesProcessed < MAX_STATES) {
             int[][] grid = queue.poll();
+            statesProcessed++;
+            
             if (trace != null) {
                 trace.incNodesExpanded();
                 trace.setFrontierPeak(Math.max(trace.getFrontierPeak(), queue.size()));
@@ -51,6 +57,11 @@ public class AlgoritmoBFS {
                 if (trace != null) trace.addStep("Expande ("+r+","+c+")="+num+" (BFS)");
             }
         }
+        
+        if (statesProcessed >= MAX_STATES && trace != null) {
+            trace.setReason("BFS alcanzó límite de " + MAX_STATES + " estados (prevención de OutOfMemory)");
+        }
+        
         return false;
     }
 

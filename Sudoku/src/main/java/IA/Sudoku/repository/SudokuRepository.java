@@ -1,24 +1,30 @@
 package IA.Sudoku.repository;
 
 import IA.Sudoku.model.Sudoku;
+import org.springframework.data.neo4j.repository.Neo4jRepository;
+import org.springframework.data.neo4j.repository.query.Query;
 import org.springframework.stereotype.Repository;
 
-import java.util.Map;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.atomic.AtomicLong;
+import java.util.List;
 
 @Repository
-public class SudokuRepository {
-    private final Map<Long, Sudoku> store = new ConcurrentHashMap<>();
-    private final AtomicLong idGen = new AtomicLong(1);
-
-    public Long save(Sudoku sudoku) {
-        Long id = idGen.getAndIncrement();
-        store.put(id, sudoku);
-        return id;
-    }
-
-    public Sudoku findById(Long id) {
-        return store.get(id);
-    }
+public interface SudokuRepository extends Neo4jRepository<Sudoku, Long> {
+    
+    // Buscar por algoritmo
+    List<Sudoku> findByAlgorithm(String algorithm);
+    
+    // Buscar solo resueltos
+    List<Sudoku> findBySolvedTrue();
+    
+    // Buscar por dificultad
+    List<Sudoku> findByDifficulty(String difficulty);
+    
+    // Buscar los más rápidos
+    @Query("MATCH (s:Sudoku) WHERE s.solved = true RETURN s ORDER BY s.runtimeMs ASC LIMIT $limit")
+    List<Sudoku> findFastestSolved(int limit);
+    
+    // Estadísticas por algoritmo
+    @Query("MATCH (s:Sudoku) WHERE s.algorithm = $algorithm AND s.solved = true " +
+           "RETURN avg(s.runtimeMs) as avgTime, count(s) as total")
+    Object getAlgorithmStats(String algorithm);
 }
